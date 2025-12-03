@@ -2,10 +2,11 @@
 
 <div align="center">
 
-![EEG Analyzer Banner](https://img.shields.io/badge/EEG-Signal%20Analyzer-blue?style=for-the-badge&logo=react&logoColor=white)
+
 [![React](https://img.shields.io/badge/React-18.2.0-61DAFB?style=flat&logo=react&logoColor=white)](https://reactjs.org/)
 [![Vite](https://img.shields.io/badge/Vite-5.0-646CFF?style=flat&logo=vite&logoColor=white)](https://vitejs.dev/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg?style=flat)](LICENSE)
+
+<img width="1390" height="960" alt="EEG Signal Analyzer Main Interface" src="https://github.com/user-attachments/assets/7ea5c3c1-2e6e-432b-ac6b-fef32eeaa63f" />
 
 **A powerful web-based tool for real-time EEG signal visualization, analysis, and frequency domain conversion.**
 
