@@ -9,8 +9,64 @@ const EEGSignalAnalyzer = () => {
   const [signalData, setSignalData] = useState([]);
   const [fftData, setFftData] = useState([]);
   const [recordedData, setRecordedData] = useState([]);
+  const [uploadedData, setUploadedData] = useState([]);
+  const [dataSource, setDataSource] = useState('generated'); // 'generated' or 'uploaded'
+  const [currentIndex, setCurrentIndex] = useState(0);
   const timeRef = useRef(0);
   const intervalRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  // Handle CSV file upload
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target.result;
+      const lines = text.split('\n');
+      const data = [];
+
+      // Skip header row and parse data
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (line) {
+          const values = line.split(',');
+          if (values.length >= 2) {
+            const time = parseFloat(values[0]);
+            const value = parseFloat(values[1]);
+            if (!isNaN(time) && !isNaN(value)) {
+              data.push({ time: time.toFixed(2), value: value });
+            }
+          }
+        }
+      }
+
+      if (data.length > 0) {
+        setUploadedData(data);
+        setDataSource('uploaded');
+        setSignalData([]);
+        setRecordedData([]);
+        setCurrentIndex(0);
+        setIsRunning(false);
+        alert(`Successfully loaded ${data.length} data points from CSV!`);
+      } else {
+        alert('No valid data found in CSV. Please ensure format is: Time,Value');
+      }
+    };
+
+    reader.readAsText(file);
+  };
+
+  const switchToGenerated = () => {
+    setDataSource('generated');
+    setSignalData([]);
+    setRecordedData([]);
+    setUploadedData([]);
+    setCurrentIndex(0);
+    timeRef.current = 0;
+    setIsRunning(false);
+  };
 
   // Generate realistic EEG-like signal with multiple frequency components
   const generateEEGSample = (t) => {
@@ -62,27 +118,60 @@ const EEGSignalAnalyzer = () => {
       const interval = 100 - speed; // Convert speed to interval (higher speed = lower interval)
       
       intervalRef.current = setInterval(() => {
-        timeRef.current += 0.01;
-        const newValue = generateEEGSample(timeRef.current);
-        
-        setSignalData(prev => {
-          const newData = [...prev, {
+        if (dataSource === 'generated') {
+          // Generate new data
+          timeRef.current += 0.01;
+          const newValue = generateEEGSample(timeRef.current);
+          
+          setSignalData(prev => {
+            const newData = [...prev, {
+              time: timeRef.current.toFixed(2),
+              value: newValue
+            }];
+            
+            // Keep only last 200 points for display
+            if (newData.length > 200) {
+              return newData.slice(-200);
+            }
+            return newData;
+          });
+          
+          // Record data
+          setRecordedData(prev => [...prev, {
             time: timeRef.current.toFixed(2),
             value: newValue
-          }];
-          
-          // Keep only last 200 points for display
-          if (newData.length > 200) {
-            return newData.slice(-200);
+          }]);
+        } else if (dataSource === 'uploaded') {
+          // Play uploaded data
+          if (currentIndex < uploadedData.length) {
+            const dataPoint = uploadedData[currentIndex];
+            const adjustedValue = 
+              parseFloat(dataPoint.value) * amplitude;
+            
+            setSignalData(prev => {
+              const newData = [...prev, {
+                time: dataPoint.time,
+                value: adjustedValue
+              }];
+              
+              // Keep only last 200 points for display
+              if (newData.length > 200) {
+                return newData.slice(-200);
+              }
+              return newData;
+            });
+            
+            setRecordedData(prev => [...prev, {
+              time: dataPoint.time,
+              value: adjustedValue
+            }]);
+            
+            setCurrentIndex(prev => prev + 1);
+          } else {
+            // End of uploaded data
+            setIsRunning(false);
           }
-          return newData;
-        });
-        
-        // Record data
-        setRecordedData(prev => [...prev, {
-          time: timeRef.current.toFixed(2),
-          value: newValue
-        }]);
+        }
       }, interval);
     } else {
       if (intervalRef.current) {
@@ -95,7 +184,7 @@ const EEGSignalAnalyzer = () => {
         clearInterval(intervalRef.current);
       }
     };
-  }, [isRunning, speed, amplitude]);
+  }, [isRunning, speed, amplitude, dataSource, currentIndex, uploadedData]);
 
   // Update FFT when signal data changes
   useEffect(() => {
@@ -114,7 +203,11 @@ const EEGSignalAnalyzer = () => {
     setSignalData([]);
     setRecordedData([]);
     setFftData([]);
-    timeRef.current = 0;
+    if (dataSource === 'generated') {
+      timeRef.current = 0;
+    } else {
+      setCurrentIndex(0);
+    }
   };
 
   const handleDownload = () => {
@@ -144,6 +237,47 @@ const EEGSignalAnalyzer = () => {
         <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 mb-6 border border-white/20">
           <h2 className="text-xl font-semibold text-white mb-4">Control Panel</h2>
           
+          {/* Data Source Selection */}
+          <div className="mb-6">
+            <label className="block text-white mb-3 font-medium">Data Source</label>
+            <div className="flex gap-4 flex-wrap">
+              <button
+                onClick={switchToGenerated}
+                className={`px-6 py-2 rounded-lg font-medium transition-colors ${
+                  dataSource === 'generated'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-white/20 text-white hover:bg-white/30'
+                }`}
+              >
+                Generated Signal
+              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`px-6 py-2 rounded-lg font-medium transition-colors ${
+                    dataSource === 'uploaded'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-white/20 text-white hover:bg-white/30'
+                  }`}
+                >
+                  Upload CSV File
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+              </div>
+            </div>
+            {dataSource === 'uploaded' && uploadedData.length > 0 && (
+              <p className="text-green-300 mt-2 text-sm">
+                ✓ Loaded {uploadedData.length} data points | Current position: {currentIndex}/{uploadedData.length}
+              </p>
+            )}
+          </div>
+          
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
             <div>
               <label className="block text-white mb-2 font-medium">
@@ -172,6 +306,9 @@ const EEGSignalAnalyzer = () => {
                 onChange={(e) => setAmplitude(Number(e.target.value))}
                 className="w-full h-2 bg-blue-400/30 rounded-lg appearance-none cursor-pointer"
               />
+              <p className="text-xs text-blue-200 mt-1">
+                {dataSource === 'uploaded' ? 'Scales uploaded data' : 'Scales generated signal'}
+              </p>
             </div>
             
             <div className="flex items-end gap-2">
